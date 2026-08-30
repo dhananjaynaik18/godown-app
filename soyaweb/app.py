@@ -7,6 +7,7 @@ from datetime import date
 # 1. APP CONFIGURATION & DICTIONARY
 # ==========================================
 st.set_page_config(page_title="DB Naik Godown Ledger", layout="wide")
+GOOGLE_SHEET_URL="https://script.google.com/macros/s/AKfycbz8T2n36X9K2oQ3DtaxyJcNg0ZY_n5ISZhQrmJ0Dm4c2eGbGw-TxD8CFgixyg8GGh8ORA/exec"
 
 # Language Dictionary for Translation
 TEXT = {
