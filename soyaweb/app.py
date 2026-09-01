@@ -201,7 +201,6 @@ def main_app():
                 
        except Exception as e:
             current_sacks, current_weight, total_pending = 0, 0, 0
-            st.error(f"⚠️ Debug Error: {e}") # <-- This will print the exact error on your screen
             
         # Display the beautiful metric cards
         col1, col2, col3 = st.columns(3)
