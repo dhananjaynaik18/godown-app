@@ -1,6 +1,7 @@
 import streamlit as st
 import sqlite3
 import pandas as pd
+import requests
 from datetime import date
 
 # ==========================================
@@ -157,105 +158,169 @@ def main_app():
     if st.sidebar.button(t["logout_btn"]):
         logout()
 
-    # --- DASHBOARD (ADMIN ONLY) ---
-    if menu == t["menu_dash"]:
+# --- DASHBOARD (ADMIN ONLY) ---
+    elif menu == t["menu_dash"]:
         st.header(t["dash_header"])
         
-        in_df = pd.read_sql("SELECT * FROM inward_stock", conn)
-        out_df = pd.read_sql("SELECT * FROM outward_stock", conn)
-
-        # Math Calculations
-        total_in_weight = in_df["net_weight"].sum() if not in_df.empty else 0.0
-        total_out_weight = out_df["net_weight"].sum() if not out_df.empty else 0.0
-        current_weight = total_in_weight - total_out_weight
-
-        total_in_sacks = in_df["sacks"].sum() if not in_df.empty else 0
-        total_out_sacks = out_df["sacks"].sum() if not out_df.empty else 0
-        current_sacks = total_in_sacks - total_out_sacks
-        
-        unpaid_cash = in_df[in_df["status"].isin(["Pending", "बाकी"])]["total_amount"].sum() if not in_df.empty else 0.0
-
+        try:
+            # 1. Fetch live data from Google Sheets (now contains BOTH sheets!)
+            response = requests.get(GOOGLE_SHEET_URL)
+            data = response.json()
+            
+            # 2. Separate the data into two DataFrames
+            in_df = pd.DataFrame(data.get("inward", []))
+            out_df = pd.DataFrame(data.get("outward", []))
+            
+            # 3. Calculate Inward (Total Purchased)
+            total_in_sacks = pd.to_numeric(in_df.get("Sacks", 0), errors="coerce").sum() if not in_df.empty else 0
+            total_in_weight = pd.to_numeric(in_df.get("Net Weight", 0), errors="coerce").sum() if not in_df.empty else 0
+            
+            # 4. Calculate Outward (Total Dispatched)
+            total_out_sacks = pd.to_numeric(out_df.get("Sacks", 0), errors="coerce").sum() if not out_df.empty else 0
+            total_out_weight = pd.to_numeric(out_df.get("Net Weight", 0), errors="coerce").sum() if not out_df.empty else 0
+            
+            # 5. Final Godown Math (Inward - Outward)
+            current_sacks = total_in_sacks - total_out_sacks
+            current_weight = total_in_weight - total_out_weight
+            
+            # 6. Calculate Pending Cash (Money owed to farmers from Inward)
+            total_pending = 0
+            if not in_df.empty and "Status" in in_df.columns and "Total Amount" in in_df.columns:
+                pending_mask = in_df["Status"].isin(["Pending", "बाकी"])
+                total_pending = pd.to_numeric(in_df.loc[pending_mask, "Total Amount"], errors="coerce").sum()
+                
+        except Exception as e:
+            current_sacks, current_weight, total_pending = 0, 0, 0
+            
+        # Display the beautiful metric cards
         col1, col2, col3 = st.columns(3)
-        col1.metric(t["total_sacks"], f"{current_sacks}")
-        col2.metric(t["total_wt"], f"{current_weight:.2f}")
-        col3.metric(t["unpaid"], f"₹ {unpaid_cash:,.2f}")
-
-        st.markdown("---")
+        col1.metric("Total Sacks in Godown", f"{int(current_sacks)}")
+        col2.metric("Current Total Weight (Qtl)", f"{current_weight:.2f}")
+        col3.metric("Cash to Pay (Pending)", f"₹ {total_pending:,.2f}")
         
-        # Admin Download Feature
-        if not in_df.empty:
-            csv = in_df.to_csv(index=False).encode('utf-8')
-            st.download_button(label=t["download_csv"], data=csv, file_name='godown_ledger.csv', mime='text/csv')
+        st.markdown("---")
+        st.info("💡 The dashboard is now subtracting Dispatched trucks to show your true live inventory!")
 
-        st.subheader(t["recent_in"])
-        if not in_df.empty:
-            st.dataframe(in_df.tail(10)[["date", "farmer_name", "sacks", "net_weight", "total_amount", "status"]], use_container_width=True)
-
-    # --- NEW PURCHASE (INWARD) ---
+   # --- NEW PURCHASE (INWARD) ---
     elif menu == t["menu_in"]:
         st.header(t["menu_in"])
         
-        with st.form("purchase_form", clear_on_submit=True):
-            col1, col2 = st.columns(2)
+        # We removed the "form" so the math calculates LIVE as you type!
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.subheader(t["farmer_details"])
+            entry_date = st.date_input("Date", value=date.today())
+            farmer_name = st.text_input(t["farmer_name"])
+            phone = st.text_input(t["phone"])
+            sacks = st.number_input(t["sacks"], min_value=1, step=1)
             
-            with col1:
-                st.subheader(t["farmer_details"])
-                entry_date = st.date_input("Date", value=date.today())
-                farmer_name = st.text_input(t["farmer_name"])
-                phone = st.text_input(t["phone"])
-                sacks = st.number_input(t["sacks"], min_value=1, step=1)
+        with col2:
+            st.subheader(t["weigh_details"])
+            gross = st.number_input(t["gross"], min_value=0.0, step=0.1)
+            tare = st.number_input(t["tare"], min_value=0.0, step=0.1)
+            rate = st.number_input(t["rate"], min_value=0.0, step=50.0)
+            status = st.selectbox(t["status"], ["Paid", "Pending", "दिले", "बाकी"])
+
+        st.markdown("---")
+        
+        # 🟢 LIVE MATH CALCULATION (Happens instantly!)
+        net_weight = gross - tare
+        total_val = net_weight * rate
+        
+        # Display the live numbers beautifully
+        st.success(f"⚖️ **Live Net Weight:** {net_weight:.2f} Qtl  |  💰 **Total Amount:** ₹ {total_val:,.2f}")
+
+        # Save Button (Now sends directly to Google Sheets instead of SQLite!)
+        if st.button(t["save_btn"]):
+            if farmer_name and net_weight > 0 and rate > 0:
+                # Pack the data to send to the cloud
+                data = {
+                    "date": str(entry_date),
+                    "farmer_name": farmer_name,
+                    "phone": phone,
+                    "sacks": sacks,
+                    "gross": gross,
+                    "tare": tare,
+                    "net": net_weight,
+                    "rate": rate,
+                    "total": total_val,
+                    "status": status
+                }
                 
-            with col2:
-                st.subheader(t["weigh_details"])
-                gross = st.number_input(t["gross"], min_value=0.0, step=0.1)
-                tare = st.number_input(t["tare"], min_value=0.0, step=0.1)
-                rate = st.number_input(t["rate"], min_value=0.0, step=50.0)
-                status = st.selectbox(t["status"], ["Paid", "Pending", "दिले", "बाकी"])
-
-            st.markdown("---")
-            net_weight = gross - tare
-            total_val = net_weight * rate
-            st.info(f"Net Weight: {net_weight:.2f} Qtl | Amount: ₹{total_val:,.2f}")
-
-            if st.form_submit_button(t["save_btn"]):
-                if farmer_name and net_weight > 0 and rate > 0:
-                    cursor.execute("""
-                    INSERT INTO inward_stock (date, farmer_name, phone, sacks, gross_weight, tare_weight, net_weight, rate, total_amount, status)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (str(entry_date), farmer_name, phone, sacks, gross, tare, net_weight, rate, total_val, status))
-                    conn.commit()
-                    st.success(t["success"])
+                try:
+                    # Blast it to Google Sheets
+                    response = requests.post(GOOGLE_SHEET_URL, json=data)
+                    if response.status_code == 200:
+                        st.balloons()
+                        st.success(t["success"] + " (Saved to Google Sheets!)")
+                        st.info("🔄 Refresh the page to enter the next tractor.")
+                    else:
+                        st.error("⚠️ Error saving to cloud.")
+                except Exception as e:
+                    st.error(f"⚠️ Connection error: {e}")
+            else:
+                st.warning("⚠️ Please enter Farmer Name, and ensure weight/rate are greater than 0.")
 
     # --- NEW DISPATCH (OUTWARD - ADMIN ONLY) ---
     elif menu == t["menu_out"]:
         st.header(t["menu_out"])
         
-        with st.form("dispatch_form", clear_on_submit=True):
-            col1, col2 = st.columns(2)
+        # We also removed the form here for LIVE math calculation!
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.subheader(t["buyer_details"])
+            entry_date = st.date_input("Date", value=date.today(), key="out_date")
+            buyer_name = st.text_input(t["buyer_name"])
+            truck_no = st.text_input(t["truck"])
+            sacks = st.number_input(t["sacks"], min_value=1, step=1, key="out_sacks")
             
-            with col1:
-                st.subheader(t["buyer_details"])
-                entry_date = st.date_input("Date", value=date.today())
-                buyer_name = st.text_input(t["buyer_name"])
-                truck_no = st.text_input(t["truck"])
-                
-            with col2:
-                st.subheader("Loading Details")
-                sacks = st.number_input(t["sacks"], min_value=1, step=1)
-                net_weight = st.number_input("Net Weight (Qtl)", min_value=0.0, step=0.1)
-                rate = st.number_input(t["rate"], min_value=0.0, step=50.0)
+        with col2: 
+            st.subheader("Loading Details")
+            # Added Gross and Tare here so trucks can be weighed leaving the godown!
+            gross = st.number_input(t["gross"], min_value=0.0, step=0.1, key="out_gross")
+            tare = st.number_input(t["tare"], min_value=0.0, step=0.1, key="out_tare")
+            rate = st.number_input(t["rate"], min_value=0.0, step=50.0, key="out_rate")
+            status = st.selectbox(t["status"], ["Paid", "Pending", "दिले", "बाकी"], key="out_status")
 
-            st.markdown("---")
-            total_val = net_weight * rate
-            
-            if st.form_submit_button(t["save_out"]):
-                if buyer_name and net_weight > 0:
-                    cursor.execute("""
-                    INSERT INTO outward_stock (date, buyer_name, truck_no, sacks, net_weight, rate, total_amount)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                    """, (str(entry_date), buyer_name, truck_no, sacks, net_weight, rate, total_val))
-                    conn.commit()
-                    st.success(t["success"])
+        st.markdown("---")
+        
+        # 🟢 LIVE MATH CALCULATION
+        net_weight = gross - tare
+        total_val = net_weight * rate
+        
+        st.success(f"⚖️ **Live Net Weight:** {net_weight:.2f} Qtl  |  💰 **Total Sale:** ₹ {total_val:,.2f}")
+        
+        # Save Button sending data to the Outward tab
+        if st.button(t["save_out"]):
+            if buyer_name and net_weight > 0 and rate > 0:
+                data = {
+                    "sheet_name": "Outward",  # 🚦 Tells Apps Script to route this to the Outward tab!
+                    "date": str(entry_date),
+                    "buyer_name": buyer_name,
+                    "truck": truck_no,
+                    "sacks": sacks,
+                    "gross": gross,
+                    "tare": tare,
+                    "net": net_weight,
+                    "rate": rate,
+                    "total": total_val,
+                    "status": status
+                }
+                
+                try:
+                    response = requests.post(GOOGLE_SHEET_URL, json=data)
+                    if response.status_code == 200:
+                        st.balloons()
+                        st.success("Dispatch saved to Google Sheets successfully!")
+                        st.info("🔄 Refresh the page to log the next truck.")
+                    else:
+                        st.error("⚠️ Error saving to cloud.")
+                except Exception as e:
+                    st.error(f"⚠️ Connection error: {e}")
+            else:
+                st.warning("⚠️ Please enter Buyer Name, and ensure weight/rate are greater than 0.")
 
 # ==========================================
 # 4. ROUTING LOGIC
