@@ -163,7 +163,7 @@ def main_app():
         st.header(t["dash_header"])
         
         try:
-            # 1. Fetch live data from Google Sheets (now contains BOTH sheets!)
+            # 1. Fetch live data from Google Sheets
             response = requests.get(GOOGLE_SHEET_URL)
             data = response.json()
             
@@ -171,23 +171,33 @@ def main_app():
             in_df = pd.DataFrame(data.get("inward", []))
             out_df = pd.DataFrame(data.get("outward", []))
             
+            # Helper to safely find columns regardless of casing
+            def get_col(df, possible_names):
+                for name in possible_names:
+                    if name in df.columns:
+                        return pd.to_numeric(df[name], errors="coerce").fillna(0)
+                return pd.Series([0] * len(df))
+
             # 3. Calculate Inward (Total Purchased)
-            total_in_sacks = pd.to_numeric(in_df.get("Sacks", 0), errors="coerce").sum() if not in_df.empty else 0
-            total_in_weight = pd.to_numeric(in_df.get("Net Weight", 0), errors="coerce").sum() if not in_df.empty else 0
+            total_in_sacks = get_col(in_df, ["Sacks", "sacks"]).sum() if not in_df.empty else 0
+            total_in_weight = get_col(in_df, ["Net Weight", "net", "Net"]).sum() if not in_df.empty else 0
             
             # 4. Calculate Outward (Total Dispatched)
-            total_out_sacks = pd.to_numeric(out_df.get("Sacks", 0), errors="coerce").sum() if not out_df.empty else 0
-            total_out_weight = pd.to_numeric(out_df.get("Net Weight", 0), errors="coerce").sum() if not out_df.empty else 0
+            total_out_sacks = get_col(out_df, ["Sacks", "sacks"]).sum() if not out_df.empty else 0
+            total_out_weight = get_col(out_df, ["Net Weight", "net", "Net"]).sum() if not out_df.empty else 0
             
             # 5. Final Godown Math (Inward - Outward)
             current_sacks = total_in_sacks - total_out_sacks
             current_weight = total_in_weight - total_out_weight
             
-            # 6. Calculate Pending Cash (Money owed to farmers from Inward)
+            # 6. Calculate Pending Cash
             total_pending = 0
-            if not in_df.empty and "Status" in in_df.columns and "Total Amount" in in_df.columns:
-                pending_mask = in_df["Status"].isin(["Pending", "बाकी"])
-                total_pending = pd.to_numeric(in_df.loc[pending_mask, "Total Amount"], errors="coerce").sum()
+            if not in_df.empty:
+                status_col = next((c for c in ["Status", "status"] if c in in_df.columns), None)
+                total_col = next((c for c in ["Total Amount", "total", "Total"] if c in in_df.columns), None)
+                if status_col and total_col:
+                    pending_mask = in_df[status_col].isin(["Pending", "बाकी"])
+                    total_pending = pd.to_numeric(in_df.loc[pending_mask, total_col], errors="coerce").sum()
                 
         except Exception as e:
             current_sacks, current_weight, total_pending = 0, 0, 0
