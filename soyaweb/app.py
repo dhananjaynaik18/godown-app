@@ -199,7 +199,7 @@ def main_app():
                     pending_mask = in_df[status_col].isin(["Pending", "बाकी"])
                     total_pending = pd.to_numeric(in_df.loc[pending_mask, total_col], errors="coerce").sum()
                 
-       except Exception as e:
+        except Exception as e:
             current_sacks, current_weight, total_pending = 0, 0, 0
             
         # Display the beautiful metric cards
