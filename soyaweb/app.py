@@ -3,22 +3,17 @@ import pandas as pd
 import requests
 from datetime import date
 
-# ==========================================
-# 1. APP CONFIGURATION
-# ==========================================
-
 st.set_page_config(
     page_title="DB Naik Soybean Godown Ledger",
-    page_icon="📦",
     layout="wide"
 )
 
 GOOGLE_SHEET_URL = "https://script.google.com/macros/s/AKfycbz8T2n36X9K2oQ3DtaxyJcNg0ZY_n5ISZhQrmJ0Dm4c2eGbGw-TxD8CFgixyg8GGh8ORA/exec"
 
 
-# ==========================================
-# 2. LANGUAGE DICTIONARY
-# ==========================================
+# =========================================================
+# TEXT
+# =========================================================
 
 TEXT = {
     "English": {
@@ -36,16 +31,14 @@ TEXT = {
         "total_sacks": "Total Sacks in Godown",
         "total_wt": "Current Total Weight (Qtl)",
         "unpaid": "Cash to Pay (Pending)",
-        "recent_in": "🕒 Recent Purchases",
-        "download_csv": "📥 Download Ledger (CSV)",
         "farmer_details": "Farmer Details",
         "farmer_name": "Farmer Name",
         "phone": "Phone Number",
         "sacks": "Number of Sacks",
         "weigh_details": "Weighbridge Details",
-        "gross": "Gross Weight (Tractor + Soybean) in Qtl",
-        "tare": "Tare Weight (Empty Tractor) in Qtl",
-        "rate": "Today's Rate (per Qtl) in ₹",
+        "gross": "Gross Weight (Qtl)",
+        "tare": "Tare Weight (Qtl)",
+        "rate": "Rate (per Qtl) ₹",
         "status": "Payment Status",
         "save_btn": "SAVE ENTRY TO LEDGER",
         "buyer_details": "Buyer / Mill Details",
@@ -58,30 +51,28 @@ TEXT = {
     "Marathi": {
         "title": "📦 डी.बी. नाईक सोयाबीन गोदाम खातेवही",
         "login_title": "🔒 गोदाम लॉग-इन",
-        "username": "वापरकर्तानाव (Username)",
-        "password": "पासवर्ड (Password)",
+        "username": "वापरकर्तानाव",
+        "password": "पासवर्ड",
         "login_btn": "लॉग-इन करा",
-        "logout_btn": "बाहेर पडा (Logout)",
+        "logout_btn": "बाहेर पडा",
         "nav": "मेनू",
-        "menu_dash": "डॅशबोर्ड (फक्त मालकांसाठी)",
+        "menu_dash": "डॅशबोर्ड",
         "menu_in": "नवीन खरेदी (आवक)",
         "menu_out": "नवीन विक्री (जावक)",
         "dash_header": "📊 आजचा गोदामाचा अहवाल",
         "total_sacks": "गोदामातील एकूण पोती",
         "total_wt": "एकूण वजन (क्विंटल)",
-        "unpaid": "देय रक्कम (बाकी)",
-        "recent_in": "🕒 अलीकडील खरेदी",
-        "download_csv": "📥 खातेवही डाउनलोड करा (CSV)",
+        "unpaid": "देय रक्कम",
         "farmer_details": "शेतकऱ्याचा तपशील",
         "farmer_name": "शेतकऱ्याचे नाव",
         "phone": "मोबाईल क्रमांक",
         "sacks": "पोत्यांची संख्या",
         "weigh_details": "वजन काट्याचा तपशील",
-        "gross": "एकूण वजन (क्विंटलमध्ये)",
+        "gross": "एकूण वजन (क्विंटल)",
         "tare": "रिकाम्या वाहनाचे वजन (क्विंटल)",
         "rate": "आजचा दर (प्रती क्विंटल) ₹",
         "status": "पैसे दिले/बाकी?",
-        "save_btn": "माहिती जतन करा (Save)",
+        "save_btn": "माहिती जतन करा",
         "buyer_details": "व्यापारी / मिलचा तपशील",
         "buyer_name": "व्यापाऱ्याचे नाव",
         "truck": "ट्रक नंबर",
@@ -91,9 +82,9 @@ TEXT = {
 }
 
 
-# ==========================================
-# 3. LOGIN
-# ==========================================
+# =========================================================
+# SESSION
+# =========================================================
 
 if "role" not in st.session_state:
     st.session_state["role"] = None
@@ -101,6 +92,81 @@ if "role" not in st.session_state:
 if "lang" not in st.session_state:
     st.session_state["lang"] = "English"
 
+
+# =========================================================
+# GOOGLE SHEET GET
+# =========================================================
+
+def get_google_data():
+
+    response = requests.get(
+        GOOGLE_SHEET_URL,
+        timeout=20
+    )
+
+    response.raise_for_status()
+
+    data = response.json()
+
+    inward = data.get("inward", [])
+    outward = data.get("outward", [])
+
+    return (
+        pd.DataFrame(inward),
+        pd.DataFrame(outward)
+    )
+
+
+# =========================================================
+# GOOGLE SHEET POST
+# =========================================================
+
+def send_to_google(data):
+
+    response = requests.post(
+        GOOGLE_SHEET_URL,
+        json=data,
+        headers={
+            "Content-Type": "application/json"
+        },
+        timeout=20
+    )
+
+    response.raise_for_status()
+
+    return response.json()
+
+
+# =========================================================
+# NUMBER HELPER
+# =========================================================
+
+def number_column(df, names):
+
+    if df.empty:
+        return 0.0
+
+    for column in df.columns:
+
+        clean_column = str(column).strip().lower()
+
+        for name in names:
+
+            if clean_column == name.lower():
+
+                values = pd.to_numeric(
+                    df[column],
+                    errors="coerce"
+                ).fillna(0)
+
+                return float(values.sum())
+
+    return 0.0
+
+
+# =========================================================
+# LOGIN
+# =========================================================
 
 def login():
 
@@ -116,6 +182,7 @@ def login():
     with st.form("login_form"):
 
         username = st.text_input(t["username"])
+
         password = st.text_input(
             t["password"],
             type="password"
@@ -130,131 +197,34 @@ def login():
             if username == "dbnaik" and password == "797979":
 
                 st.session_state["role"] = "admin"
+
                 st.rerun()
 
             elif username == "staff" and password == "12345678":
 
                 st.session_state["role"] = "worker"
+
                 st.rerun()
 
             else:
 
-                st.error("❌ Incorrect Details")
+                st.error("❌ Incorrect username or password")
 
+
+# =========================================================
+# LOGOUT
+# =========================================================
 
 def logout():
 
     st.session_state["role"] = None
+
     st.rerun()
 
 
-# ==========================================
-# 4. GOOGLE SHEET FUNCTIONS
-# ==========================================
-
-def get_google_data():
-
-    try:
-
-        response = requests.get(
-            GOOGLE_SHEET_URL,
-            timeout=15
-        )
-
-        response.raise_for_status()
-
-        data = response.json()
-
-        inward = pd.DataFrame(
-            data.get("inward", [])
-        )
-
-        outward = pd.DataFrame(
-            data.get("outward", [])
-        )
-
-        return inward, outward, None
-
-    except Exception as e:
-
-        return (
-            pd.DataFrame(),
-            pd.DataFrame(),
-            str(e)
-        )
-
-
-def send_to_google_sheet(data):
-
-    try:
-
-        response = requests.post(
-            GOOGLE_SHEET_URL,
-            json=data,
-            headers={
-                "Content-Type": "application/json"
-            },
-            timeout=15
-        )
-
-        response.raise_for_status()
-
-        result = response.text.strip()
-
-        if "Success" in result:
-
-            return True, result
-
-        return False, result
-
-    except Exception as e:
-
-        return False, str(e)
-
-
-# ==========================================
-# 5. COLUMN HELPER
-# ==========================================
-
-def find_column(df, possible_names):
-
-    if df.empty:
-        return None
-
-    normalized = {
-        str(column).strip().lower(): column
-        for column in df.columns
-    }
-
-    for name in possible_names:
-
-        key = name.strip().lower()
-
-        if key in normalized:
-            return normalized[key]
-
-    return None
-
-
-def numeric_sum(df, possible_names):
-
-    column = find_column(
-        df,
-        possible_names
-    )
-
-    if column is None:
-        return 0.0
-
-    return pd.to_numeric(
-        df[column],
-        errors="coerce"
-    ).fillna(0).sum()
-
-
-# ==========================================
-# 6. MAIN APP
-# ==========================================
+# =========================================================
+# MAIN APP
+# =========================================================
 
 def main_app():
 
@@ -296,209 +266,177 @@ def main_app():
         logout()
 
 
-    # ==========================================
+    # =====================================================
     # DASHBOARD
-    # ==========================================
+    # =====================================================
 
     if menu == t["menu_dash"]:
 
         st.header(t["dash_header"])
 
-        inward_df, outward_df, error = get_google_data()
+        try:
 
-        if error:
+            inward_df, outward_df = get_google_data()
 
-            st.error(
-                f"⚠️ Could not read Google Sheets: {error}"
-            )
+            # -----------------------------
+            # INWARD
+            # -----------------------------
 
-            current_sacks = 0
-            current_weight = 0
-            total_pending = 0
-
-        else:
-
-            # ------------------------------
-            # INWARD TOTALS
-            # ------------------------------
-
-            total_in_sacks = numeric_sum(
+            inward_sacks = number_column(
                 inward_df,
-                [
-                    "Sacks",
-                    "sacks",
-                    "Number of Sacks"
-                ]
+                ["sacks"]
             )
 
-            total_in_weight = numeric_sum(
+            inward_weight = number_column(
                 inward_df,
-                [
-                    "Net Weight",
-                    "net weight",
-                    "Net",
-                    "net"
-                ]
+                ["net", "net weight"]
             )
 
-            # ------------------------------
-            # OUTWARD TOTALS
-            # ------------------------------
+            # -----------------------------
+            # OUTWARD
+            # -----------------------------
 
-            total_out_sacks = numeric_sum(
+            outward_sacks = number_column(
                 outward_df,
-                [
-                    "Sacks",
-                    "sacks",
-                    "Number of Sacks"
-                ]
+                ["sacks"]
             )
 
-            total_out_weight = numeric_sum(
+            outward_weight = number_column(
                 outward_df,
-                [
-                    "Net Weight",
-                    "net weight",
-                    "Net",
-                    "net"
-                ]
+                ["net", "net weight"]
             )
 
-            # ------------------------------
-            # CURRENT INVENTORY
-            # ------------------------------
+            # -----------------------------
+            # CURRENT STOCK
+            # -----------------------------
 
             current_sacks = (
-                total_in_sacks -
-                total_out_sacks
+                inward_sacks - outward_sacks
             )
 
             current_weight = (
-                total_in_weight -
-                total_out_weight
+                inward_weight - outward_weight
             )
 
-            # Never show negative stock
-            current_sacks = max(
-                0,
-                current_sacks
-            )
-
-            current_weight = max(
-                0,
-                current_weight
-            )
-
-            # ------------------------------
+            # -----------------------------
             # PENDING PAYMENT
-            # ------------------------------
+            # -----------------------------
 
-            total_pending = 0
+            total_pending = 0.0
 
-            status_column = find_column(
-                inward_df,
-                [
-                    "Status",
-                    "status",
-                    "Payment Status"
-                ]
+            if not inward_df.empty:
+
+                status_col = None
+                total_col = None
+
+                for c in inward_df.columns:
+
+                    name = str(c).strip().lower()
+
+                    if name == "status":
+                        status_col = c
+
+                    if name in ["total", "total amount"]:
+                        total_col = c
+
+                if status_col and total_col:
+
+                    status = (
+                        inward_df[status_col]
+                        .astype(str)
+                        .str.strip()
+                        .str.lower()
+                    )
+
+                    pending = status.isin(
+                        ["pending", "बाकी"]
+                    )
+
+                    total_pending = pd.to_numeric(
+                        inward_df.loc[
+                            pending,
+                            total_col
+                        ],
+                        errors="coerce"
+                    ).fillna(0).sum()
+
+
+            # -----------------------------
+            # DISPLAY
+            # -----------------------------
+
+            col1, col2, col3 = st.columns(3)
+
+            col1.metric(
+                "📦 Total Sacks in Godown",
+                f"{int(current_sacks)}"
             )
 
-            total_column = find_column(
-                inward_df,
-                [
-                    "Total Amount",
-                    "total amount",
-                    "Total",
-                    "total"
-                ]
+            col2.metric(
+                "⚖️ Current Total Weight",
+                f"{current_weight:.2f} Qtl"
             )
 
-            if (
-                status_column is not None
-                and total_column is not None
+            col3.metric(
+                "💰 Cash to Pay",
+                f"₹ {total_pending:,.2f}"
+            )
+
+
+            # -----------------------------
+            # DEBUG
+            # -----------------------------
+
+            with st.expander(
+                "🔎 Check Google Sheet Data"
             ):
 
-                statuses = (
-                    inward_df[status_column]
-                    .astype(str)
-                    .str.strip()
-                    .str.lower()
-                )
+                st.write("INWARD DATA")
 
-                pending_mask = statuses.isin(
-                    [
-                        "pending",
-                        "बाकी"
-                    ]
-                )
-
-                total_pending = pd.to_numeric(
-                    inward_df.loc[
-                        pending_mask,
-                        total_column
-                    ],
-                    errors="coerce"
-                ).fillna(0).sum()
-
-
-        # ------------------------------
-        # METRIC CARDS
-        # ------------------------------
-
-        col1, col2, col3 = st.columns(3)
-
-        col1.metric(
-            t["total_sacks"],
-            f"{int(current_sacks)}"
-        )
-
-        col2.metric(
-            t["total_wt"],
-            f"{current_weight:.2f}"
-        )
-
-        col3.metric(
-            t["unpaid"],
-            f"₹ {total_pending:,.2f}"
-        )
-
-        st.markdown("---")
-
-        st.info(
-            "💡 Live inventory = Total Inward − Total Outward"
-        )
-
-        # ------------------------------
-        # DEBUG / DATA PREVIEW
-        # ------------------------------
-
-        with st.expander("🔍 View Google Sheet Data"):
-
-            st.write("Inward Data")
-
-            if inward_df.empty:
-                st.info("No inward records found.")
-            else:
                 st.dataframe(
                     inward_df,
                     use_container_width=True
                 )
 
-            st.write("Outward Data")
+                st.write("OUTWARD DATA")
 
-            if outward_df.empty:
-                st.info("No outward records found.")
-            else:
                 st.dataframe(
                     outward_df,
                     use_container_width=True
                 )
 
+                st.write(
+                    "Inward Sacks:",
+                    inward_sacks
+                )
 
-    # ==========================================
-    # NEW PURCHASE / INWARD
-    # ==========================================
+                st.write(
+                    "Outward Sacks:",
+                    outward_sacks
+                )
+
+                st.write(
+                    "Inward Weight:",
+                    inward_weight
+                )
+
+                st.write(
+                    "Outward Weight:",
+                    outward_weight
+                )
+
+        except Exception as e:
+
+            st.error(
+                "❌ Dashboard could not read Google Sheets."
+            )
+
+            st.code(str(e))
+
+
+    # =====================================================
+    # INWARD
+    # =====================================================
 
     elif menu == t["menu_in"]:
 
@@ -530,6 +468,7 @@ def main_app():
                 min_value=1,
                 step=1
             )
+
 
         with col2:
 
@@ -565,113 +504,97 @@ def main_app():
                 ]
             )
 
-        st.markdown("---")
 
         net_weight = gross - tare
 
         total_val = net_weight * rate
 
-        if net_weight < 0:
+        st.success(
+            f"⚖️ Net Weight: {net_weight:.2f} Qtl   |   "
+            f"💰 Total: ₹ {total_val:,.2f}"
+        )
 
-            st.error(
-                "⚠️ Gross weight cannot be less than tare weight."
-            )
 
-        else:
+        if st.button(t["save_btn"]):
 
-            st.success(
-                f"⚖️ **Live Net Weight:** "
-                f"{net_weight:.2f} Qtl  |  "
-                f"💰 **Total Amount:** "
-                f"₹ {total_val:,.2f}"
-            )
-
-        if st.button(
-            t["save_btn"],
-            type="primary"
-        ):
-
-            if not farmer_name.strip():
-
-                st.warning(
-                    "⚠️ Please enter Farmer Name."
-                )
-
-            elif net_weight <= 0:
-
-                st.warning(
-                    "⚠️ Net weight must be greater than 0."
-                )
-
-            elif rate <= 0:
-
-                st.warning(
-                    "⚠️ Rate must be greater than 0."
-                )
-
-            else:
+            if (
+                farmer_name
+                and net_weight > 0
+                and rate > 0
+                and gross >= tare
+            ):
 
                 data = {
 
-                    "sheet_name": "Inward",
+                    # VERY IMPORTANT
+                    "type": "INWARD",
 
                     "date": str(entry_date),
 
-                    "farmer_name":
-                        farmer_name.strip(),
+                    "farmer_name": farmer_name,
 
-                    "phone":
-                        phone.strip(),
+                    "phone": phone,
 
-                    "sacks":
-                        int(sacks),
+                    "sacks": int(sacks),
 
-                    "gross":
-                        float(gross),
+                    "gross": float(gross),
 
-                    "tare":
-                        float(tare),
+                    "tare": float(tare),
 
-                    "net":
-                        float(net_weight),
+                    "net": float(net_weight),
 
-                    "rate":
-                        float(rate),
+                    "rate": float(rate),
 
-                    "total":
-                        float(total_val),
+                    "total": float(total_val),
 
-                    "status":
-                        status
+                    "status": status
                 }
 
-                success, message = send_to_google_sheet(
-                    data
-                )
+                try:
 
-                if success:
+                    result = send_to_google(data)
 
-                    st.balloons()
+                    if result.get("success"):
 
-                    st.success(
-                        t["success"] +
-                        " Saved to Inward sheet!"
-                    )
+                        st.success(
+                            "✅ Inward saved successfully!"
+                        )
 
-                    st.info(
-                        "✅ You can now enter the next tractor."
-                    )
+                        st.write(
+                            "Google Sheet:",
+                            result.get("sheet")
+                        )
 
-                else:
+                        st.rerun()
+
+                    else:
+
+                        st.error(
+                            "❌ Google Sheet Error"
+                        )
+
+                        st.code(
+                            str(result)
+                        )
+
+                except Exception as e:
 
                     st.error(
-                        f"⚠️ Error saving Inward entry: {message}"
+                        "❌ Connection error"
                     )
 
+                    st.code(str(e))
 
-    # ==========================================
-    # NEW DISPATCH / OUTWARD
-    # ==========================================
+            else:
+
+                st.warning(
+                    "⚠️ Enter Farmer Name and valid weights/rate."
+                )
+
+
+    # =====================================================
+    # OUTWARD
+    # =====================================================
 
     elif menu == t["menu_out"]:
 
@@ -705,6 +628,7 @@ def main_app():
                 step=1,
                 key="out_sacks"
             )
+
 
         with col2:
 
@@ -744,115 +668,97 @@ def main_app():
                 key="out_status"
             )
 
-        st.markdown("---")
 
         net_weight = gross - tare
 
         total_val = net_weight * rate
 
-        if net_weight < 0:
+        st.success(
+            f"⚖️ Net Weight: {net_weight:.2f} Qtl   |   "
+            f"💰 Sale: ₹ {total_val:,.2f}"
+        )
 
-            st.error(
-                "⚠️ Gross weight cannot be less than tare weight."
-            )
 
-        else:
+        if st.button(t["save_out"]):
 
-            st.success(
-                f"⚖️ **Live Net Weight:** "
-                f"{net_weight:.2f} Qtl  |  "
-                f"💰 **Total Sale:** "
-                f"₹ {total_val:,.2f}"
-            )
-
-        if st.button(
-            t["save_out"],
-            type="primary"
-        ):
-
-            if not buyer_name.strip():
-
-                st.warning(
-                    "⚠️ Please enter Buyer Name."
-                )
-
-            elif net_weight <= 0:
-
-                st.warning(
-                    "⚠️ Net weight must be greater than 0."
-                )
-
-            elif rate <= 0:
-
-                st.warning(
-                    "⚠️ Rate must be greater than 0."
-                )
-
-            else:
-
-                # IMPORTANT:
-                # Explicitly set sheet_name = Outward
+            if (
+                buyer_name
+                and net_weight > 0
+                and rate > 0
+                and gross >= tare
+            ):
 
                 data = {
 
-                    "sheet_name": "Outward",
+                    # VERY IMPORTANT
+                    "type": "OUTWARD",
 
                     "date": str(entry_date),
 
-                    "buyer_name":
-                        buyer_name.strip(),
+                    "buyer_name": buyer_name,
 
-                    "truck":
-                        truck_no.strip(),
+                    "truck": truck_no,
 
-                    "sacks":
-                        int(sacks),
+                    "sacks": int(sacks),
 
-                    "gross":
-                        float(gross),
+                    "gross": float(gross),
 
-                    "tare":
-                        float(tare),
+                    "tare": float(tare),
 
-                    "net":
-                        float(net_weight),
+                    "net": float(net_weight),
 
-                    "rate":
-                        float(rate),
+                    "rate": float(rate),
 
-                    "total":
-                        float(total_val),
+                    "total": float(total_val),
 
-                    "status":
-                        status
+                    "status": status
                 }
 
-                success, message = send_to_google_sheet(
-                    data
-                )
+                try:
 
-                if success:
+                    result = send_to_google(data)
 
-                    st.balloons()
+                    if result.get("success"):
 
-                    st.success(
-                        "✅ Dispatch saved to OUTWARD sheet successfully!"
-                    )
+                        st.success(
+                            "✅ Outward saved successfully!"
+                        )
 
-                    st.info(
-                        "You can now enter the next truck."
-                    )
+                        st.write(
+                            "Google Sheet:",
+                            result.get("sheet")
+                        )
 
-                else:
+                        st.rerun()
+
+                    else:
+
+                        st.error(
+                            "❌ Google Sheet Error"
+                        )
+
+                        st.code(
+                            str(result)
+                        )
+
+                except Exception as e:
 
                     st.error(
-                        f"⚠️ Error saving Outward entry: {message}"
+                        "❌ Connection error"
                     )
 
+                    st.code(str(e))
 
-# ==========================================
-# 7. ROUTING
-# ==========================================
+            else:
+
+                st.warning(
+                    "⚠️ Enter Buyer Name and valid weights/rate."
+                )
+
+
+# =========================================================
+# START
+# =========================================================
 
 if st.session_state.get("role"):
 
