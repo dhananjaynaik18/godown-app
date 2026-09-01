@@ -8,7 +8,7 @@ st.set_page_config(
     layout="wide"
 )
 
-GOOGLE_SHEET_URL = "https://script.google.com/macros/s/AKfycbz8T2n36X9K2oQ3DtaxyJcNg0ZY_n5ISZhQrmJ0Dm4c2eGbGw-TxD8CFgixyg8GGh8ORA/exec"
+GOOGLE_SHEET_URL = "https://script.google.com/macros/s/AKfycbyy4UODezcMR7Yk4qLQuS7h5VuUY9fxQ7uQympKTEGCx59tFQHbZMmcL6efl_v8Zm8lJA/exec"
 
 
 # =========================================================
