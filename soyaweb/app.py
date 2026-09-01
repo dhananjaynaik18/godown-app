@@ -109,7 +109,6 @@ def login():
     t = TEXT[st.session_state["lang"]]
     
     st.title(t["login_title"])
-    st.write("Admin (dbnaik/797979) | Worker (staff/12345678)")
     
     with st.form("login_form"):
         username = st.text_input(t["username"])
