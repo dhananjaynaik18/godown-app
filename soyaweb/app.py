@@ -540,24 +540,21 @@ def main_app():
 
                     if result.get("success"):
                         
-                        # 1. Show the success messages
                         st.toast("✅ Inward saved successfully!", icon="🎉")
                         st.success("✅ Saved to DB Naik Ledger!")
-                        
-                        # 🎈 2. TRIGGER THE BALLOONS!
                         st.balloons()
 
-                        # 3. Wipe the screen memory
-                        for key in list(st.session_state.keys()):
-                            if key not in ["role", "lang"]:
-                                del st.session_state[key]
+                        # --- BULLETPROOF SCREEN WIPE ---
+                        st.session_state["in_name"] = ""
+                        st.session_state["in_phone"] = ""
+                        st.session_state["in_sacks"] = 1
+                        st.session_state["in_gross"] = 0.0
+                        st.session_state["in_tare"] = 0.0
+                        st.session_state["in_rate"] = 0.0
                                 
-                        # 4. Wait 3 seconds for the balloons to finish floating
                         time.sleep(3)
-
-                        # 5. Refresh the page
                         st.rerun()
-
+                        
                     else:
 
                         st.error(
@@ -711,22 +708,19 @@ def main_app():
 
                     if result.get("success"):
                         
-                        # 1. Show the success messages
                         st.toast("✅ Outward saved successfully!", icon="🚚")
                         st.success("✅ Dispatch Saved!")
-                        
-                        # 🎈 2. TRIGGER THE BALLOONS!
                         st.balloons()
 
-                        # 3. Wipe the screen memory
-                        for key in list(st.session_state.keys()):
-                            if key not in ["role", "lang"]:
-                                del st.session_state[key]
+                        # --- BULLETPROOF SCREEN WIPE ---
+                        st.session_state["out_name"] = ""
+                        st.session_state["out_truck"] = ""
+                        st.session_state["out_sacks"] = 1
+                        st.session_state["out_gross"] = 0.0
+                        st.session_state["out_tare"] = 0.0
+                        st.session_state["out_rate"] = 0.0
                                 
-                        # 4. Wait 3 seconds for the balloons to finish floating
                         time.sleep(3)
-
-                        # 5. Refresh the page
                         st.rerun()
                         
                     else:
