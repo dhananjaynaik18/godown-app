@@ -538,16 +538,15 @@ def main_app():
                     result = send_to_google(data)
 
                     if result.get("success"):
-
-                        st.success(
-                            "✅ Inward saved successfully!"
-                        )
-
-                        st.write(
-                            "Google Sheet:",
-                            result.get("sheet")
-                        )
-
+                        st.success("✅ Saved successfully!")
+                        st.write("Google Sheet:", result.get("sheet"))
+                        
+                        # --- THE FIX: WIPE THE SCREEN ---
+                        for key in list(st.session_state.keys()):
+                            if key not in ["role", "lang"]:
+                                del st.session_state[key]
+                        # --------------------------------
+                        
                         st.rerun()
 
                     else:
@@ -711,6 +710,11 @@ def main_app():
                             "Google Sheet:",
                             result.get("sheet")
                         )
+
+                        # --- WIPE THE SCREEN ---
+                        for key in list(st.session_state.keys()):
+                            if key not in ["role", "lang"]:
+                                del st.session_state[key]
 
                         st.rerun()
 
