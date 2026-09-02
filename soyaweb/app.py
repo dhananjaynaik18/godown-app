@@ -266,172 +266,320 @@ def main_app():
         logout()
 
 
-    # =====================================================
-    # DASHBOARD
-    # =====================================================
+# =====================================================
+# DASHBOARD
+# =====================================================
 
-    if menu == t["menu_dash"]:
+if menu == t["menu_dash"]:
 
-        st.header(t["dash_header"])
+    st.header(t["dash_header"])
 
-        try:
+    try:
 
-            inward_df, outward_df = get_google_data()
+        # Get latest data from Google Sheet
+        inward_df, outward_df = get_google_data()
 
-            # -----------------------------
-            # INWARD
-            # -----------------------------
+        # =================================================
+        # CLEAN COLUMN NAMES
+        # =================================================
 
-            inward_sacks = number_column(
-                inward_df,
-                ["sacks"]
-            )
+        inward_df.columns = [
+            str(c).strip()
+            for c in inward_df.columns
+        ]
 
-            inward_weight = number_column(
-                inward_df,
-                ["net", "net weight"]
-            )
+        outward_df.columns = [
+            str(c).strip()
+            for c in outward_df.columns
+        ]
 
-            # -----------------------------
-            # OUTWARD
-            # -----------------------------
+        # =================================================
+        # INWARD SACKS
+        # =================================================
 
-            outward_sacks = number_column(
-                outward_df,
-                ["sacks"]
-            )
+        inward_sacks = 0
 
-            outward_weight = number_column(
-                outward_df,
-                ["net", "net weight"]
-            )
+        if not inward_df.empty:
 
-            # -----------------------------
-            # CURRENT STOCK
-            # -----------------------------
+            for column in inward_df.columns:
 
-            current_sacks = (
-                inward_sacks - outward_sacks
-            )
+                if str(column).strip().lower() == "sacks":
 
-            current_weight = (
-                inward_weight - outward_weight
-            )
-
-            # -----------------------------
-            # PENDING PAYMENT
-            # -----------------------------
-
-            total_pending = 0.0
-
-            if not inward_df.empty:
-
-                status_col = None
-                total_col = None
-
-                for c in inward_df.columns:
-
-                    name = str(c).strip().lower()
-
-                    if name == "status":
-                        status_col = c
-
-                    if name in ["total", "total amount"]:
-                        total_col = c
-
-                if status_col and total_col:
-
-                    status = (
-                        inward_df[status_col]
-                        .astype(str)
-                        .str.strip()
-                        .str.lower()
-                    )
-
-                    pending = status.isin(
-                        ["pending", "बाकी"]
-                    )
-
-                    total_pending = pd.to_numeric(
-                        inward_df.loc[
-                            pending,
-                            total_col
-                        ],
+                    inward_sacks = pd.to_numeric(
+                        inward_df[column],
                         errors="coerce"
                     ).fillna(0).sum()
 
+                    break
 
-            # -----------------------------
-            # DISPLAY
-            # -----------------------------
+        # =================================================
+        # OUTWARD SACKS
+        # =================================================
 
-            col1, col2, col3 = st.columns(3)
+        outward_sacks = 0
 
-            col1.metric(
-                "📦 Total Sacks in Godown",
-                f"{int(current_sacks)}"
-            )
+        if not outward_df.empty:
 
-            col2.metric(
-                "⚖️ Current Total Weight",
-                f"{current_weight:.2f} Qtl"
-            )
+            for column in outward_df.columns:
 
-            col3.metric(
-                "💰 Cash to Pay",
-                f"₹ {total_pending:,.2f}"
-            )
+                if str(column).strip().lower() == "sacks":
+
+                    outward_sacks = pd.to_numeric(
+                        outward_df[column],
+                        errors="coerce"
+                    ).fillna(0).sum()
+
+                    break
+
+        # =================================================
+        # REMAINING SACKS
+        # =================================================
+
+        remaining_sacks = (
+            inward_sacks - outward_sacks
+        )
+
+        # Prevent negative display
+        if remaining_sacks < 0:
+            remaining_sacks = 0
 
 
-            # -----------------------------
-            # DEBUG
-            # -----------------------------
+        # =================================================
+        # INWARD WEIGHT
+        # =================================================
 
-            with st.expander(
-                "🔎 Check Google Sheet Data"
+        inward_weight = 0.0
+
+        if not inward_df.empty:
+
+            for column in inward_df.columns:
+
+                column_name = (
+                    str(column)
+                    .strip()
+                    .lower()
+                    .replace("_", " ")
+                )
+
+                if column_name in [
+                    "net",
+                    "net weight"
+                ]:
+
+                    inward_weight = pd.to_numeric(
+                        inward_df[column],
+                        errors="coerce"
+                    ).fillna(0).sum()
+
+                    break
+
+
+        # =================================================
+        # OUTWARD WEIGHT
+        # =================================================
+
+        outward_weight = 0.0
+
+        if not outward_df.empty:
+
+            for column in outward_df.columns:
+
+                column_name = (
+                    str(column)
+                    .strip()
+                    .lower()
+                    .replace("_", " ")
+                )
+
+                if column_name in [
+                    "net",
+                    "net weight"
+                ]:
+
+                    outward_weight = pd.to_numeric(
+                        outward_df[column],
+                        errors="coerce"
+                    ).fillna(0).sum()
+
+                    break
+
+
+        # =================================================
+        # REMAINING WEIGHT
+        # =================================================
+
+        remaining_weight = (
+            inward_weight - outward_weight
+        )
+
+        if remaining_weight < 0:
+            remaining_weight = 0
+
+
+        # =================================================
+        # CASH TO PAY
+        # =================================================
+
+        cash_to_pay = 0.0
+
+        if not inward_df.empty:
+
+            status_column = None
+            total_column = None
+
+            # Find Status column
+            for column in inward_df.columns:
+
+                column_name = (
+                    str(column)
+                    .strip()
+                    .lower()
+                )
+
+                if column_name == "status":
+
+                    status_column = column
+
+                    break
+
+
+            # Find Total column
+            for column in inward_df.columns:
+
+                column_name = (
+                    str(column)
+                    .strip()
+                    .lower()
+                    .replace("_", " ")
+                )
+
+                if column_name in [
+                    "total",
+                    "total amount"
+                ]:
+
+                    total_column = column
+
+                    break
+
+
+            # Calculate pending amount
+            if (
+                status_column is not None
+                and total_column is not None
             ):
 
-                st.write("INWARD DATA")
-
-                st.dataframe(
-                    inward_df,
-                    use_container_width=True
+                status_values = (
+                    inward_df[status_column]
+                    .astype(str)
+                    .str.strip()
+                    .str.lower()
                 )
 
-                st.write("OUTWARD DATA")
+                # Pending values
+                pending_values = [
+                    "pending",
+                    "बाकी"
+                ]
 
-                st.dataframe(
-                    outward_df,
-                    use_container_width=True
+                pending_rows = (
+                    status_values.isin(
+                        pending_values
+                    )
                 )
 
-                st.write(
-                    "Inward Sacks:",
-                    inward_sacks
-                )
+                cash_to_pay = pd.to_numeric(
+                    inward_df.loc[
+                        pending_rows,
+                        total_column
+                    ],
+                    errors="coerce"
+                ).fillna(0).sum()
 
-                st.write(
-                    "Outward Sacks:",
-                    outward_sacks
-                )
 
-                st.write(
-                    "Inward Weight:",
-                    inward_weight
-                )
+        # =================================================
+        # DASHBOARD DISPLAY
+        # =================================================
 
-                st.write(
-                    "Outward Weight:",
-                    outward_weight
-                )
+        col1, col2, col3 = st.columns(3)
 
-        except Exception as e:
+        with col1:
 
-            st.error(
-                "❌ Dashboard could not read Google Sheets."
+            st.metric(
+                "📦 Remaining Sacks",
+                f"{int(remaining_sacks)}"
             )
 
-            st.code(str(e))
+        with col2:
+
+            st.metric(
+                "⚖️ Current Total Weight",
+                f"{remaining_weight:.2f} Qtl"
+            )
+
+        with col3:
+
+            st.metric(
+                "💰 Cash to Pay",
+                f"₹ {cash_to_pay:,.2f}"
+            )
+
+
+        # =================================================
+        # DETAILS
+        # =================================================
+
+        st.markdown("---")
+
+        with st.expander("🔎 Dashboard Calculation Details"):
+
+            st.write(
+                "Total Inward Sacks:",
+                int(inward_sacks)
+            )
+
+            st.write(
+                "Total Outward Sacks:",
+                int(outward_sacks)
+            )
+
+            st.write(
+                "Remaining Sacks:",
+                int(remaining_sacks)
+            )
+
+            st.markdown("---")
+
+            st.write(
+                "Total Inward Weight:",
+                f"{inward_weight:.2f} Qtl"
+            )
+
+            st.write(
+                "Total Outward Weight:",
+                f"{outward_weight:.2f} Qtl"
+            )
+
+            st.write(
+                "Remaining Weight:",
+                f"{remaining_weight:.2f} Qtl"
+            )
+
+            st.markdown("---")
+
+            st.write(
+                "Pending Cash:",
+                f"₹ {cash_to_pay:,.2f}"
+            )
+
+
+    except Exception as e:
+
+        st.error(
+            "❌ Unable to calculate dashboard values."
+        )
+
+        st.code(str(e))
 
 
     # =====================================================
