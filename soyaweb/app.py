@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import requests
 from datetime import date
+import time
 
 st.set_page_config(
     page_title="DB Naik Soybean Godown Ledger",
@@ -538,15 +539,20 @@ def main_app():
                     result = send_to_google(data)
 
                     if result.get("success"):
-                        st.success("✅ Saved successfully!")
-                        st.write("Google Sheet:", result.get("sheet"))
                         
-                        # --- THE FIX: WIPE THE SCREEN ---
+                        # 1. Show the popup!
+                        st.toast("✅ Inward saved successfully!", icon="🎉")
+                        st.success("✅ Saved to DB Naik Ledger!")
+
+                        # 2. Wipe the screen memory
                         for key in list(st.session_state.keys()):
                             if key not in ["role", "lang"]:
                                 del st.session_state[key]
-                        # --------------------------------
-                        
+                                
+                        # 3. Wait 2 seconds so the user can read the popup
+                        time.sleep(2)
+
+                        # 4. Refresh the page
                         st.rerun()
 
                     else:
@@ -701,23 +707,22 @@ def main_app():
                     result = send_to_google(data)
 
                     if result.get("success"):
+                        
+                        # 1. Show the popup!
+                        st.toast("✅ Outward saved successfully!", icon="🚚")
+                        st.success("✅ Dispatch Saved!")
 
-                        st.success(
-                            "✅ Outward saved successfully!"
-                        )
-
-                        st.write(
-                            "Google Sheet:",
-                            result.get("sheet")
-                        )
-
-                        # --- WIPE THE SCREEN ---
+                        # 2. Wipe the screen memory
                         for key in list(st.session_state.keys()):
                             if key not in ["role", "lang"]:
                                 del st.session_state[key]
+                                
+                        # 3. Wait 2 seconds so the user can read the popup
+                        time.sleep(2)
 
+                        # 4. Refresh the page
                         st.rerun()
-
+                        
                     else:
 
                         st.error(
