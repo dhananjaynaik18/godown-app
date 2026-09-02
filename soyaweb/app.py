@@ -540,19 +540,22 @@ def main_app():
 
                     if result.get("success"):
                         
-                        # 1. Show the popup!
+                        # 1. Show the success messages
                         st.toast("✅ Inward saved successfully!", icon="🎉")
                         st.success("✅ Saved to DB Naik Ledger!")
+                        
+                        # 🎈 2. TRIGGER THE BALLOONS!
+                        st.balloons()
 
-                        # 2. Wipe the screen memory
+                        # 3. Wipe the screen memory
                         for key in list(st.session_state.keys()):
                             if key not in ["role", "lang"]:
                                 del st.session_state[key]
                                 
-                        # 3. Wait 2 seconds so the user can read the popup
-                        time.sleep(2)
+                        # 4. Wait 3 seconds for the balloons to finish floating
+                        time.sleep(3)
 
-                        # 4. Refresh the page
+                        # 5. Refresh the page
                         st.rerun()
 
                     else:
@@ -708,19 +711,22 @@ def main_app():
 
                     if result.get("success"):
                         
-                        # 1. Show the popup!
+                        # 1. Show the success messages
                         st.toast("✅ Outward saved successfully!", icon="🚚")
                         st.success("✅ Dispatch Saved!")
+                        
+                        # 🎈 2. TRIGGER THE BALLOONS!
+                        st.balloons()
 
-                        # 2. Wipe the screen memory
+                        # 3. Wipe the screen memory
                         for key in list(st.session_state.keys()):
                             if key not in ["role", "lang"]:
                                 del st.session_state[key]
                                 
-                        # 3. Wait 2 seconds so the user can read the popup
-                        time.sleep(2)
+                        # 4. Wait 3 seconds for the balloons to finish floating
+                        time.sleep(3)
 
-                        # 4. Refresh the page
+                        # 5. Refresh the page
                         st.rerun()
                         
                     else:
