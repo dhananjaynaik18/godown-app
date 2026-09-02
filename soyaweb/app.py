@@ -136,32 +136,26 @@ def send_to_google(data):
 
     return response.json()
 
-
 # =========================================================
-# NUMBER HELPER
+# NUMBER HELPER (UPGRADED FOR SUBSTRING MATCHING)
 # =========================================================
-
 def number_column(df, names):
-
     if df.empty:
         return 0.0
 
     for column in df.columns:
-
         clean_column = str(column).strip().lower()
 
         for name in names:
-
-            if clean_column == name.lower():
-
+            # We changed '==' to 'in' so it finds partial matches!
+            if name.lower() in clean_column: 
                 values = pd.to_numeric(
                     df[column],
                     errors="coerce"
                 ).fillna(0)
-
                 return float(values.sum())
-
     return 0.0
+
 
 
 # =========================================================
@@ -318,45 +312,34 @@ def main_app():
                 inward_weight - outward_weight
             )
 
-            # -----------------------------
+           # -----------------------------
             # PENDING PAYMENT
             # -----------------------------
-
             total_pending = 0.0
 
             if not inward_df.empty:
-
                 status_col = None
                 total_col = None
 
                 for c in inward_df.columns:
-
                     name = str(c).strip().lower()
-
-                    if name == "status":
+                    if "status" in name:
                         status_col = c
-
-                    if name in ["total", "total amount"]:
+                    if "total" in name or "amount" in name:
                         total_col = c
 
                 if status_col and total_col:
-
                     status = (
                         inward_df[status_col]
                         .astype(str)
                         .str.strip()
                         .str.lower()
                     )
-
-                    pending = status.isin(
-                        ["pending", "बाकी"]
-                    )
+                    
+                    pending = status.isin(["pending", "बाकी"])
 
                     total_pending = pd.to_numeric(
-                        inward_df.loc[
-                            pending,
-                            total_col
-                        ],
+                        inward_df.loc[pending, total_col],
                         errors="coerce"
                     ).fillna(0).sum()
 
